@@ -29,6 +29,7 @@ TEST_CASE ("Parameters exist with expected defaults", "[doubler][params]")
     PluginProcessor proc;
     auto& apvts = proc.apvts;
 
+    CHECK (apvts.getRawParameterValue ("intensity")   != nullptr);
     CHECK (apvts.getRawParameterValue ("voices")      != nullptr);
     CHECK (apvts.getRawParameterValue ("timingDrift") != nullptr);
     CHECK (apvts.getRawParameterValue ("variance")    != nullptr);

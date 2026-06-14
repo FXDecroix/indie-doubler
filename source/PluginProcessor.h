@@ -16,6 +16,10 @@ public:
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+    // Maps the "Intensity" macro (0 = not indie, 1 = very indie) onto the individual
+    // parameters. Called by the editor on a user gesture (message thread).
+    void applyIntensity (float intensity01);
+
     // Exposed so the editor can attach controls to the parameters.
     juce::AudioProcessorValueTreeState apvts;
 

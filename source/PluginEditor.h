@@ -25,11 +25,24 @@ private:
     };
 
     void addControl (ParameterControl& control, const juce::String& paramID, const juce::String& displayName);
+    void setAdvancedVisible (bool shouldBeVisible);
 
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
+    static constexpr int collapsedWidth  = 460;
+    static constexpr int collapsedHeight = 360;
+    static constexpr int expandedHeight  = 640;
+
     PluginProcessor& processorRef;
 
+    // The big "Intensity" macro knob (not indie → very indie).
+    juce::Slider intensityKnob;
+    juce::Label  notIndieLabel { {}, "not indie" };
+    juce::Label  veryIndieLabel { {}, "very indie" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> intensityAttachment;
+    bool draggingIntensity = false;
+
+    // Collapsible advanced section with every individual parameter.
+    juce::TextButton advancedButton;
+    bool advancedVisible = false;
     ParameterControl voices, timingDrift, variance, detune, width, mix, warmth, decorrelate;
 
     std::unique_ptr<melatonin::Inspector> inspector;

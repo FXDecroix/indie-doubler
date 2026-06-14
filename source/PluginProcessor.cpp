@@ -20,6 +20,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout layout;
 
+    // The "Intensity" macro: a single dial (not indie → very indie) that the editor
+    // maps onto the individual parameters below. Kept as a real parameter so its
+    // position is saved and shown, but it does not drive the DSP directly.
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "intensity", 1 }, "Intensity",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.4f));
+
     layout.add (std::make_unique<AudioParameterInt> (
         ParameterID { "voices", 1 }, "Voices", 1, indie::DoublerEngine::kMaxVoices, 2));
 
@@ -54,6 +61,28 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.5f));
 
     return layout;
+}
+
+void PluginProcessor::applyIntensity (float t)
+{
+    t = juce::jlimit (0.0f, 1.0f, t);
+
+    auto set = [this] (const juce::String& id, float actualValue)
+    {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 (actualValue));
+    };
+
+    // The "optimal" curve from subtle/tight/clean (not indie) to loose/wide/characterful
+    // (very indie). More than just mix — every meaningful dimension opens up together.
+    set ("voices",      juce::jmap (t, 1.0f,  3.49f)); // 1 → 3 doubles
+    set ("timingDrift", juce::jmap (t, 5.0f,  22.0f)); // tight → loose (ms)
+    set ("variance",    juce::jmap (t, 0.15f, 0.9f));  // steady → human
+    set ("detune",      juce::jmap (t, 3.0f,  16.0f)); // gentle → wide pitch spread (cents)
+    set ("width",       juce::jmap (t, 0.35f, 1.0f));  // narrow → wide
+    set ("mix",         juce::jmap (t, 0.22f, 0.55f)); // under → present
+    set ("warmth",      juce::jmap (t, 0.25f, 0.5f));  // a touch darker as it gets denser
+    set ("decorrelate", juce::jmap (t, 0.35f, 0.85f)); // more glue/decorrelation
 }
 
 PluginProcessor::~PluginProcessor()
