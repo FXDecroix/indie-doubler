@@ -1,10 +1,11 @@
-name: Pamplejuce
+name: Indie Doubler
 
 on:
   workflow_dispatch: # lets you run a build from the UI
   workflow_call: # lets other workflows (like nightly.yml) call this one
-  push:
-  pull_request:
+  # CI is disabled for now (no automatic builds on push/PR) - uncomment to re-enable
+  # push:
+  # pull_request:
 
 # When pushing new commits, cancel any running builds on that branch
 concurrency:
@@ -147,10 +148,10 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         run: |
           # add the icns as its own icon resource (meta!)
-          sips -i packaging/pamplejuce.icns
+          sips -i packaging/icon.icns
 
           # Grab the resource, put in tempfile
-          DeRez -only icns packaging/pamplejuce.icns > /tmp/icons
+          DeRez -only icns packaging/icon.icns > /tmp/icons
 
           # Stuff the resource into the strange Icon? file's resource fork
           Rez -a /tmp/icons -o "${{ env.VST3_PATH }}/Icon"$'\r'

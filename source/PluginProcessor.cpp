@@ -10,8 +10,50 @@ PluginProcessor::PluginProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+       apvts (*this, nullptr, "PARAMETERS", createParameterLayout())
 {
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParameterLayout()
+{
+    using namespace juce;
+    AudioProcessorValueTreeState::ParameterLayout layout;
+
+    layout.add (std::make_unique<AudioParameterInt> (
+        ParameterID { "voices", 1 }, "Voices", 1, indie::DoublerEngine::kMaxVoices, 2));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "timingDrift", 1 }, "Timing Drift",
+        NormalisableRange<float> { 0.0f, 40.0f, 0.1f }, 12.0f,
+        AudioParameterFloatAttributes().withLabel ("ms")));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "variance", 1 }, "Variance",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.5f));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "detune", 1 }, "Detune",
+        NormalisableRange<float> { 0.0f, 25.0f, 0.1f }, 8.0f,
+        AudioParameterFloatAttributes().withLabel ("cents")));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "width", 1 }, "Width",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.8f));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "mix", 1 }, "Mix",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.5f));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "warmth", 1 }, "Warmth",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.35f));
+
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "decorrelate", 1 }, "Decorrelate",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.5f));
+
+    return layout;
 }
 
 PluginProcessor::~PluginProcessor()
@@ -86,15 +128,26 @@ void PluginProcessor::changeProgramName (int index, const juce::String& newName)
 //==============================================================================
 void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
-    juce::ignoreUnused (sampleRate, samplesPerBlock);
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate       = sampleRate;
+    spec.maximumBlockSize = (juce::uint32) samplesPerBlock;
+    spec.numChannels      = (juce::uint32) juce::jmax (1, getTotalNumOutputChannels());
+
+    engine.prepare (spec);
+
+    voicesParam      = apvts.getRawParameterValue ("voices");
+    timingDriftParam = apvts.getRawParameterValue ("timingDrift");
+    varianceParam    = apvts.getRawParameterValue ("variance");
+    detuneParam      = apvts.getRawParameterValue ("detune");
+    widthParam       = apvts.getRawParameterValue ("width");
+    mixParam         = apvts.getRawParameterValue ("mix");
+    warmthParam      = apvts.getRawParameterValue ("warmth");
+    decorrelateParam = apvts.getRawParameterValue ("decorrelate");
 }
 
 void PluginProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
+    engine.reset();
 }
 
 bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -137,18 +190,18 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-        juce::ignoreUnused (channelData);
-        // ..do something to the data...
-    }
+    indie::DoublerEngine::Parameters params;
+    params.numVoices    = (int) std::round (voicesParam->load());
+    params.timingDriftMs = timingDriftParam->load();
+    params.variance     = varianceParam->load();
+    params.detuneCents  = detuneParam->load();
+    params.width        = widthParam->load();
+    params.mix          = mixParam->load();
+    params.warmth       = warmthParam->load();
+    params.decorrelate  = decorrelateParam->load();
+
+    engine.setParameters (params);
+    engine.process (buffer);
 }
 
 //==============================================================================
@@ -165,17 +218,15 @@ juce::AudioProcessorEditor* PluginProcessor::createEditor()
 //==============================================================================
 void PluginProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
-    juce::ignoreUnused (destData);
+    if (auto xml = apvts.copyState().createXml())
+        copyXmlToBinary (*xml, destData);
 }
 
 void PluginProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-    juce::ignoreUnused (data, sizeInBytes);
+    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+        if (xml->hasTagName (apvts.state.getType()))
+            apvts.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 //==============================================================================

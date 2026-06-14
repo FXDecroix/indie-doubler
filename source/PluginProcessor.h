@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "dsp/DoublerEngine.h"
+
 #if (MSVC)
 #include "ipps.h"
 #endif
@@ -11,6 +13,11 @@ class PluginProcessor : public juce::AudioProcessor
 public:
     PluginProcessor();
     ~PluginProcessor() override;
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    // Exposed so the editor can attach controls to the parameters.
+    juce::AudioProcessorValueTreeState apvts;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -39,5 +46,17 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
+    indie::DoublerEngine engine;
+
+    // Cached raw parameter pointers (read once per processBlock).
+    std::atomic<float>* voicesParam      = nullptr;
+    std::atomic<float>* timingDriftParam = nullptr;
+    std::atomic<float>* varianceParam    = nullptr;
+    std::atomic<float>* detuneParam      = nullptr;
+    std::atomic<float>* widthParam       = nullptr;
+    std::atomic<float>* mixParam         = nullptr;
+    std::atomic<float>* warmthParam      = nullptr;
+    std::atomic<float>* decorrelateParam = nullptr;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
