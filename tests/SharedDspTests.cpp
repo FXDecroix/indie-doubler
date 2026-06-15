@@ -17,6 +17,37 @@ double highFreqEnergy (const std::vector<float>& x)
 }
 } // namespace
 
+TEST_CASE ("SaturationStage is near-unity at low signal and bounded", "[shared][saturation]")
+{
+    indie::SaturationStage sat;
+    sat.setDrive (1.0f);
+    sat.setMakeup (1.0f);
+
+    // Small-signal gain is ~unity.
+    CHECK (sat.processSample (0.001f) == Catch::Approx (0.001f).margin (1.0e-5f));
+
+    // Odd symmetry.
+    CHECK (sat.processSample (-0.4f) == Catch::Approx (-sat.processSample (0.4f)));
+
+    // Output stays bounded even for a huge input.
+    CHECK (std::abs (sat.processSample (1000.0f)) <= 1.0f + 1.0e-4f);
+}
+
+TEST_CASE ("SaturationStage compresses peaks more as drive rises", "[shared][saturation]")
+{
+    auto peakForDrive = [] (float drive)
+    {
+        indie::SaturationStage sat;
+        sat.setDrive (drive);
+        sat.setMakeup (1.0f);
+        return sat.processSample (1.0f); // full-scale input
+    };
+
+    // Higher drive => more rounding => lower full-scale output (before makeup).
+    CHECK (peakForDrive (8.0f) < peakForDrive (2.0f));
+    CHECK (peakForDrive (2.0f) < peakForDrive (1.0f));
+}
+
 TEST_CASE ("StereoField pan is constant power and correctly placed", "[shared][stereofield]")
 {
     float l, r;
