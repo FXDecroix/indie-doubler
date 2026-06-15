@@ -29,7 +29,7 @@ private:
 
     static constexpr int collapsedWidth  = 460;
     static constexpr int collapsedHeight = 360;
-    static constexpr int expandedHeight  = 640;
+    static constexpr int expandedHeight  = 760;
 
     PluginProcessor& processorRef;
 
@@ -43,7 +43,7 @@ private:
     // Collapsible advanced section with every individual parameter.
     juce::TextButton advancedButton;
     bool advancedVisible = false;
-    ParameterControl voices, timingDrift, variance, detune, width, mix, warmth, decorrelate;
+    ParameterControl voices, timingDrift, variance, detune, width, mix, warmth, decorrelate, drive;
 
     std::unique_ptr<melatonin::Inspector> inspector;
     juce::TextButton inspectButton { "Inspect the UI" };

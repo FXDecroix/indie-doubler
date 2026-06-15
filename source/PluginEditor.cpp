@@ -43,6 +43,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addControl (mix,         "mix",         "Mix");
     addControl (warmth,      "warmth",      "Warmth");
     addControl (decorrelate, "decorrelate", "Decorr");
+    addControl (drive,       "drive",       "Drive");
 
     addChildComponent (inspectButton);
     inspectButton.onClick = [&] {
@@ -81,7 +82,7 @@ void PluginEditor::setAdvancedVisible (bool shouldBeVisible)
     advancedVisible = shouldBeVisible;
     advancedButton.setButtonText (advancedVisible ? "Advanced  v" : "Advanced  >");
 
-    for (auto* c : { &voices, &timingDrift, &variance, &detune, &width, &mix, &warmth, &decorrelate })
+    for (auto* c : { &voices, &timingDrift, &variance, &detune, &width, &mix, &warmth, &decorrelate, &drive })
     {
         c->slider.setVisible (advancedVisible);
         c->label.setVisible (advancedVisible);
@@ -130,8 +131,9 @@ void PluginEditor::resized()
     inspectButton.setBounds (area.removeFromBottom (40).withSizeKeepingCentre (120, 30));
 
     ParameterControl* controls[] { &voices, &timingDrift, &variance, &detune,
-                                   &width, &mix, &warmth, &decorrelate };
-    constexpr int cols = 4;
+                                   &width, &mix, &warmth, &decorrelate, &drive };
+    constexpr int cols = 3;
+    constexpr int rows = 3;
 
     auto layoutRow = [] (juce::Rectangle<int> row, ParameterControl** first)
     {
@@ -144,7 +146,8 @@ void PluginEditor::resized()
         }
     };
 
-    const int rowHeight = area.getHeight() / 2;
+    const int rowHeight = area.getHeight() / rows;
     layoutRow (area.removeFromTop (rowHeight), &controls[0]);
-    layoutRow (area, &controls[4]);
+    layoutRow (area.removeFromTop (rowHeight), &controls[3]);
+    layoutRow (area, &controls[6]);
 }

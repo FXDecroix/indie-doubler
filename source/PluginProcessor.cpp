@@ -60,6 +60,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createParam
         ParameterID { "decorrelate", 1 }, "Decorrelate",
         NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.5f));
 
+    layout.add (std::make_unique<AudioParameterFloat> (
+        ParameterID { "drive", 1 }, "Drive",
+        NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f));
+
     return layout;
 }
 
@@ -83,6 +87,7 @@ void PluginProcessor::applyIntensity (float t)
     set ("mix",         juce::jmap (t, 0.22f, 0.55f)); // under → present
     set ("warmth",      juce::jmap (t, 0.25f, 0.5f));  // a touch darker as it gets denser
     set ("decorrelate", juce::jmap (t, 0.35f, 0.85f)); // more glue/decorrelation
+    set ("drive",       juce::jmap (t, 0.0f,  0.4f));  // clean → a touch of grit on the doubles
 }
 
 PluginProcessor::~PluginProcessor()
@@ -172,6 +177,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     mixParam         = apvts.getRawParameterValue ("mix");
     warmthParam      = apvts.getRawParameterValue ("warmth");
     decorrelateParam = apvts.getRawParameterValue ("decorrelate");
+    driveParam       = apvts.getRawParameterValue ("drive");
 }
 
 void PluginProcessor::releaseResources()
@@ -247,6 +253,7 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     params.mix          = mixParam->load();
     params.warmth       = warmthParam->load();
     params.decorrelate  = decorrelateParam->load();
+    params.drive        = driveParam->load();
 
     engine.setParameters (params);
     engine.process (buffer);

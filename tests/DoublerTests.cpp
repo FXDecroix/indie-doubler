@@ -37,6 +37,7 @@ TEST_CASE ("Parameters exist with expected defaults", "[doubler][params]")
     CHECK (apvts.getRawParameterValue ("mix")         != nullptr);
     CHECK (apvts.getRawParameterValue ("warmth")      != nullptr);
     CHECK (apvts.getRawParameterValue ("decorrelate") != nullptr);
+    CHECK (apvts.getRawParameterValue ("drive")       != nullptr);
 
     CHECK (apvts.getRawParameterValue ("voices")->load()      == 2.0f);
     CHECK (apvts.getRawParameterValue ("timingDrift")->load() == Catch::Approx (12.0f));
@@ -44,6 +45,7 @@ TEST_CASE ("Parameters exist with expected defaults", "[doubler][params]")
     CHECK (apvts.getRawParameterValue ("detune")->load()      == Catch::Approx (8.0f));
     CHECK (apvts.getRawParameterValue ("width")->load()       == Catch::Approx (0.8f));
     CHECK (apvts.getRawParameterValue ("mix")->load()         == Catch::Approx (0.5f));
+    CHECK (apvts.getRawParameterValue ("drive")->load()       == Catch::Approx (0.0f));
 }
 
 TEST_CASE ("Fully dry mix is a passthrough", "[doubler][engine]")
@@ -396,6 +398,53 @@ TEST_CASE ("Warmth reduces wet high-frequency content", "[doubler][warmth]")
     };
 
     CHECK (wetHighFreqEnergy (0.9f) < wetHighFreqEnergy (0.0f));
+}
+
+TEST_CASE ("Drive saturates the wet signal more as it rises from zero", "[doubler][drive]")
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 8192;
+
+    // Pure-wet peak after running through the doubler at a given drive amount.
+    auto wetPeak = [&] (float drive)
+    {
+        indie::DoublerEngine engine;
+        engine.prepare (makeSpec (sr, block, 2));
+
+        indie::DoublerEngine::Parameters params;
+        params.numVoices = 2;
+        params.mix = 1.0f;
+        params.drive = drive;
+        engine.setParameters (params);
+
+        juce::Random rng (5);
+
+        // Warm up so the mix smoothing settles to fully wet - otherwise the dry
+        // signal leaks through during the ramp and dominates the peak regardless
+        // of drive.
+        for (int i = 0; i < 4; ++i)
+        {
+            juce::AudioBuffer<float> warm (2, block);
+            fillNoise (warm, rng, 0.9f);
+            engine.process (warm);
+        }
+
+        juce::AudioBuffer<float> buffer (2, block);
+        fillNoise (buffer, rng, 0.9f); // hot signal so saturation has a visible effect
+
+        engine.process (buffer);
+
+        float peak = 0.0f;
+        for (int ch = 0; ch < 2; ++ch)
+            for (int n = 0; n < block; ++n)
+                peak = juce::jmax (peak, std::abs (buffer.getSample (ch, n)));
+        return peak;
+    };
+
+    // At drive = 0 the saturation stage is bypassed entirely; rising drive compresses
+    // peaks progressively more.
+    CHECK (wetPeak (1.0f) < wetPeak (0.5f));
+    CHECK (wetPeak (0.5f) < wetPeak (0.0f));
 }
 
 TEST_CASE ("Engine stays finite and bounded under extreme settings", "[doubler][rt]")

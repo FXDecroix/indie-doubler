@@ -33,6 +33,7 @@ public:
         float mix         = 0.5f;
         float warmth      = 0.35f;
         float decorrelate = 0.5f;
+        float drive       = 0.0f; // 0 = off (bypassed); 1 = hottest
     };
 
     DoublerEngine() = default;
@@ -69,6 +70,15 @@ public:
             voices[(size_t) i].setParameters (params.timingDriftMs, params.variance, params.detuneCents,
                                               params.warmth, params.decorrelate);
 
+        // Drive maps onto the wet bus's saturation stage: 1 (clean, near-unity) at
+        // drive = 0 up to 8 (hot) at drive = 1. Below, process() bypasses the stage
+        // entirely at drive = 0 so the doubler is unaffected by default.
+        const float driveAmount = 1.0f + params.drive * 7.0f;
+        saturationL.setDrive (driveAmount);
+        saturationL.setMakeup (1.0f);
+        saturationR.setDrive (driveAmount);
+        saturationR.setMakeup (1.0f);
+
         smoothedMix.setTargetValue (params.mix);
         updatePanGains();
     }
@@ -102,6 +112,14 @@ public:
             }
             wetL *= wetNorm;
             wetR *= wetNorm;
+
+            // Optional drive: add character/warmth to the doubles without touching
+            // the dry signal. Bypassed entirely at drive = 0 (the default).
+            if (params.drive > 0.0f)
+            {
+                wetL = saturationL.processSample (wetL);
+                wetR = saturationR.processSample (wetR);
+            }
 
             const float m = smoothedMix.getNextValue();
 
@@ -143,6 +161,8 @@ private:
     std::array<DoubleVoice, (size_t) kMaxVoices> voices;
     std::array<float, (size_t) kMaxVoices> panL { };
     std::array<float, (size_t) kMaxVoices> panR { };
+
+    SaturationStage saturationL, saturationR;
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedMix;
     Parameters params;

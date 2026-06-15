@@ -61,6 +61,7 @@ private:
     std::atomic<float>* mixParam         = nullptr;
     std::atomic<float>* warmthParam      = nullptr;
     std::atomic<float>* decorrelateParam = nullptr;
+    std::atomic<float>* driveParam       = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginProcessor)
 };
