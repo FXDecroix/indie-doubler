@@ -48,6 +48,7 @@ public:
 
         pitchShifter.prepare (sampleRate);
         diffuser.prepare (sampleRate, seed);
+        warmthFilter.prepare (sampleRate);
 
         const double rampSeconds = 0.030;
         smoothedDelay.reset (sampleRate, rampSeconds);
@@ -62,7 +63,7 @@ public:
         delayLine.reset();
         pitchShifter.reset();
         diffuser.reset();
-        warmthState = 0.0f;
+        warmthFilter.reset();
 
         driftSamples    = 0.0f;
         lastMicroOffset = 0.0f;
@@ -91,7 +92,7 @@ public:
 
         // Warmth maps to a one-pole low-pass cutoff on the wet signal.
         const double cutoffHz = 18000.0 * std::pow (0.14, (double) warmth); // ~18k → ~2.5k
-        warmthCoeff = (float) (1.0 - std::exp (-2.0 * juce::MathConstants<double>::pi * cutoffHz / sampleRate));
+        warmthFilter.setCutoff ((float) cutoffHz);
 
         smoothedDelay.setTargetValue (baseDelaySamples + lastMicroOffset);
     }
@@ -144,8 +145,7 @@ public:
 
         // Decorrelate so the double doesn't comb with the dry signal, then warm it.
         s = diffuser.processSample (s, decorrelateAmount);
-        warmthState += warmthCoeff * (s - warmthState);
-        s = warmthState;
+        s = warmthFilter.processSample (s);
 
         return s * smoothedGain.getNextValue();
     }
@@ -173,9 +173,10 @@ private:
     int    maxDelaySamples = 1;
 
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Lagrange3rd> delayLine { 1 << 15 };
-    PitchShifter pitchShifter;
-    Diffuser     diffuser;
-    juce::Random rng;
+    PitchShifter  pitchShifter;
+    Diffuser      diffuser;
+    OnePoleFilter warmthFilter;
+    juce::Random  rng;
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedDelay;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain;
@@ -185,9 +186,6 @@ private:
     float currentVariance   = 0.5f;
     float currentDetune     = 8.0f;
     float decorrelateAmount = 0.5f;
-
-    float warmthCoeff = 1.0f;
-    float warmthState = 0.0f;
 
     float lastMicroOffset = 0.0f;
     float lastGain        = defaultGain;

@@ -19,6 +19,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include "dsp/OnePoleFilter.h"
 #include "dsp/PitchShifter.h"
 #include "dsp/Diffuser.h"
 #include "dsp/OnsetDetector.h"
