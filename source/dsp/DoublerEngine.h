@@ -1,7 +1,7 @@
 #pragma once
 
 #include <juce_dsp/juce_dsp.h>
-#include "OnsetDetector.h"
+#include <indie_shared_dsp/indie_shared_dsp.h>
 #include "DoubleVoice.h"
 
 namespace indie

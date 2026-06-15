@@ -112,6 +112,12 @@ include(SharedCodeDefaults)
 file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/source/*.h")
 target_sources(SharedCode INTERFACE ${SourceFiles})
 
+# Reusable building blocks shared across the Indie plugin suite, kept isolated from
+# plugin-specific code in source/ so this folder can be lifted into its own module/repo later.
+file(GLOB_RECURSE SharedComponentFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shared/*.h")
+target_sources(SharedCode INTERFACE ${SharedComponentFiles})
+target_include_directories(SharedCode INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/shared")
+
 # Adds a BinaryData target for embedding assets into the binary
 include(Assets)
 

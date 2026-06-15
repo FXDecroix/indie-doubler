@@ -1,8 +1,7 @@
 #pragma once
 
 #include <juce_dsp/juce_dsp.h>
-#include "PitchShifter.h"
-#include "Diffuser.h"
+#include <indie_shared_dsp/indie_shared_dsp.h>
 
 namespace indie
 {
