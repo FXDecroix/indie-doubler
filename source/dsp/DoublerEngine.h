@@ -78,7 +78,10 @@ public:
         const int numCh      = buffer.getNumChannels();
         const int numSamples = buffer.getNumSamples();
         const int active     = params.numVoices;
-        const float wetNorm  = 1.0f / std::sqrt ((float) active);
+
+        // The sqrt2 makeup compensates for the constant-power pan split in
+        // updatePanGains(): without it, a fully wet channel sits at -3dB.
+        const float wetNorm = juce::MathConstants<float>::sqrt2 / std::sqrt ((float) active);
 
         for (int n = 0; n < numSamples; ++n)
         {
@@ -102,16 +105,21 @@ public:
 
             const float m = smoothedMix.getNextValue();
 
+            // Equal-power crossfade: dry and wet are largely decorrelated, so a linear
+            // (1-m)/m blend would dip in level through the middle of the mix range.
+            const float dryGain = std::sqrt (1.0f - m);
+            const float wetGain = std::sqrt (m);
+
             if (numCh >= 2)
             {
-                buffer.setSample (0, n, dry0 * (1.0f - m) + wetL * m);
-                buffer.setSample (1, n, dry1 * (1.0f - m) + wetR * m);
+                buffer.setSample (0, n, dry0 * dryGain + wetL * wetGain);
+                buffer.setSample (1, n, dry1 * dryGain + wetR * wetGain);
             }
             else if (numCh == 1)
             {
                 // No stereo field in mono — use the summed (centre) wet signal.
                 const float wetMono = 0.5f * (wetL + wetR);
-                buffer.setSample (0, n, dry0 * (1.0f - m) + wetMono * m);
+                buffer.setSample (0, n, dry0 * dryGain + wetMono * wetGain);
             }
         }
     }

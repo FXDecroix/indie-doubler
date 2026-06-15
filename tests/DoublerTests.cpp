@@ -81,6 +81,61 @@ TEST_CASE ("Fully dry mix is a passthrough", "[doubler][engine]")
             REQUIRE (output.getSample (ch, n) == Catch::Approx (input.getSample (ch, n)).margin (1.0e-6));
 }
 
+TEST_CASE ("Default mix preserves overall signal level", "[doubler][engine][gain]")
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 8192;
+
+    indie::DoublerEngine engine;
+    engine.prepare (makeSpec (sr, block, 2));
+
+    // Defaults: numVoices = 2, width = 0.8, mix = 0.5.
+    indie::DoublerEngine::Parameters params;
+    engine.setParameters (params);
+
+    juce::Random rng (42);
+
+    // Warm up so the mix smoothing settles and the voices reach a steady state.
+    for (int i = 0; i < 4; ++i)
+    {
+        juce::AudioBuffer<float> warm (2, block);
+        fillNoise (warm, rng);
+        engine.process (warm);
+    }
+
+    // A mono source: identical signal in both channels, as if a mono track
+    // were routed to a stereo bus.
+    juce::AudioBuffer<float> buffer (2, block);
+    fillNoise (buffer, rng, 0.5f);
+    for (int n = 0; n < block; ++n)
+        buffer.setSample (1, n, buffer.getSample (0, n));
+
+    auto rms = [] (const juce::AudioBuffer<float>& b)
+    {
+        double energy = 0.0;
+        for (int ch = 0; ch < b.getNumChannels(); ++ch)
+            for (int n = 0; n < b.getNumSamples(); ++n)
+            {
+                const double s = b.getSample (ch, n);
+                energy += s * s;
+            }
+        return std::sqrt (energy / (double) (b.getNumChannels() * b.getNumSamples()));
+    };
+
+    const double inputRms = rms (buffer);
+    engine.process (buffer);
+    const double outputRms = rms (buffer);
+
+    const double diffDb = 20.0 * std::log10 (outputRms / inputRms);
+
+    // At the default 50/50 mix, the wet doubles (after warmth/diffusion/detune)
+    // run a bit quieter than the dry signal, but the equal-power crossfade and
+    // pan-law makeup gain should keep the combined level within a few dB of
+    // unity. A larger drop here would indicate a gain-staging regression.
+    CHECK (diffDb > -3.0);
+    CHECK (diffDb < 0.5);
+}
+
 TEST_CASE ("Wet mix produces a delayed double", "[doubler][engine]")
 {
     constexpr double sr = 48000.0;
