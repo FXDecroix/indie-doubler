@@ -21,6 +21,7 @@
 
 #include "dsp/OnePoleFilter.h"
 #include "dsp/EnvelopeFollower.h"
+#include "dsp/StereoField.h"
 #include "dsp/PitchShifter.h"
 #include "dsp/Diffuser.h"
 #include "dsp/OnsetDetector.h"

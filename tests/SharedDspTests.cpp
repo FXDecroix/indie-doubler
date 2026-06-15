@@ -17,6 +17,42 @@ double highFreqEnergy (const std::vector<float>& x)
 }
 } // namespace
 
+TEST_CASE ("StereoField pan is constant power and correctly placed", "[shared][stereofield]")
+{
+    float l, r;
+
+    indie::StereoField::panGains (0.0f, l, r); // centre
+    CHECK (l == Catch::Approx (r));
+    CHECK (l * l + r * r == Catch::Approx (1.0f)); // unit power
+
+    indie::StereoField::panGains (-1.0f, l, r); // hard left
+    CHECK (l == Catch::Approx (1.0f));
+    CHECK (r == Catch::Approx (0.0f).margin (1.0e-6f));
+
+    indie::StereoField::panGains (1.0f, l, r); // hard right
+    CHECK (l == Catch::Approx (0.0f).margin (1.0e-6f));
+    CHECK (r == Catch::Approx (1.0f));
+}
+
+TEST_CASE ("StereoField spread widens symmetrically with width", "[shared][stereofield]")
+{
+    // Two voices at full width sit at the extremes; at zero width both are centred.
+    CHECK (indie::StereoField::spreadPosition (0, 2, 1.0f) == Catch::Approx (-1.0f));
+    CHECK (indie::StereoField::spreadPosition (1, 2, 1.0f) == Catch::Approx (1.0f));
+    CHECK (indie::StereoField::spreadPosition (0, 2, 0.0f) == Catch::Approx (0.0f));
+    CHECK (indie::StereoField::spreadPosition (1, 2, 0.0f) == Catch::Approx (0.0f));
+}
+
+TEST_CASE ("StereoField crossfade is equal power", "[shared][stereofield]")
+{
+    float dry, wet;
+    for (float m : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+    {
+        indie::StereoField::crossfadeGains (m, dry, wet);
+        CHECK (dry * dry + wet * wet == Catch::Approx (1.0f)); // power preserved across the sweep
+    }
+}
+
 TEST_CASE ("OnePoleFilter passes DC and settles to the input level", "[shared][onepole]")
 {
     constexpr double sr = 48000.0;

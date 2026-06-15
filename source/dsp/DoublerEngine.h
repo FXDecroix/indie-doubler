@@ -107,8 +107,8 @@ public:
 
             // Equal-power crossfade: dry and wet are largely decorrelated, so a linear
             // (1-m)/m blend would dip in level through the middle of the mix range.
-            const float dryGain = std::sqrt (1.0f - m);
-            const float wetGain = std::sqrt (m);
+            float dryGain, wetGain;
+            StereoField::crossfadeGains (m, dryGain, wetGain);
 
             if (numCh >= 2)
             {
@@ -127,19 +127,13 @@ public:
 private:
     void updatePanGains()
     {
-        const int   active = params.numVoices;
-        const float halfPi = juce::MathConstants<float>::halfPi;
+        const int active = params.numVoices;
 
         for (int v = 0; v < active; ++v)
         {
             // Spread voices symmetrically across the stereo field, scaled by width.
-            float panPos = (active == 1) ? 1.0f
-                                         : (-1.0f + 2.0f * (float) v / (float) (active - 1));
-            panPos *= params.width;
-
-            const float angle = (panPos + 1.0f) * 0.5f * halfPi; // [-1,1] -> [0, pi/2]
-            panL[(size_t) v] = std::cos (angle);
-            panR[(size_t) v] = std::sin (angle);
+            const float panPos = StereoField::spreadPosition (v, active, params.width);
+            StereoField::panGains (panPos, panL[(size_t) v], panR[(size_t) v]);
         }
     }
 
