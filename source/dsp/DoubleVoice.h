@@ -49,6 +49,8 @@ public:
         pitchShifter.prepare (sampleRate);
         diffuser.prepare (sampleRate, seed);
         warmthFilter.prepare (sampleRate);
+        vibratoLfo.prepare (sampleRate);
+        timingDrift.setStepSize (driftStepSamples);
 
         const double rampSeconds = 0.030;
         smoothedDelay.reset (sampleRate, rampSeconds);
@@ -64,12 +66,11 @@ public:
         pitchShifter.reset();
         diffuser.reset();
         warmthFilter.reset();
+        vibratoLfo.reset();
+        timingDrift.reset();
 
-        driftSamples    = 0.0f;
         lastMicroOffset = 0.0f;
         lastGain        = defaultGain;
-        vibratoPhase    = 0.0f;
-        vibratoInc      = 0.0f;
         vibratoDepthCents = 0.0f;
 
         const float base = nominalDelaySamples();
@@ -89,6 +90,8 @@ public:
         currentVariance  = variance;
         currentDetune    = detuneCents;
         decorrelateAmount = decorrelate;
+
+        timingDrift.setLimit (maxDriftSamples() * currentVariance);
 
         // Warmth maps to a one-pole low-pass cutoff on the wet signal.
         const double cutoffHz = 18000.0 * std::pow (0.14, (double) warmth); // ~18k → ~2.5k
@@ -115,17 +118,15 @@ public:
 
         // Fresh, independent vibrato for this note (decorrelates takes on sustains).
         const float vibHz = 4.0f + rng.nextFloat() * 2.5f;
-        vibratoInc = juce::MathConstants<float>::twoPi * vibHz / (float) sampleRate;
+        vibratoLfo.setFrequency (vibHz);
         vibratoDepthCents = (2.0f + rng.nextFloat() * 4.0f) * (0.5f + 0.5f * currentVariance);
-        vibratoPhase = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+        vibratoLfo.setPhase (rng.nextFloat() * juce::MathConstants<float>::twoPi);
     }
 
     float processSample (float dry)
     {
         // Slow random walk of the base timing (drifts across and within notes).
-        driftSamples += nextBipolar() * driftStepSamples;
-        const float driftLimit = maxDriftSamples() * currentVariance;
-        driftSamples = juce::jlimit (-driftLimit, driftLimit, driftSamples);
+        const float driftSamples = timingDrift.processSample (nextBipolar());
 
         float delaySamples = smoothedDelay.getNextValue() + driftSamples;
         delaySamples = juce::jlimit (1.0f, (float) (maxDelaySamples - 1), delaySamples);
@@ -135,11 +136,7 @@ public:
         float s = delayLine.popSample (0);
 
         // Pitch: held per-note offset plus independent vibrato.
-        vibratoPhase += vibratoInc;
-        if (vibratoPhase > juce::MathConstants<float>::twoPi)
-            vibratoPhase -= juce::MathConstants<float>::twoPi;
-
-        const float cents = smoothedCents.getNextValue() + vibratoDepthCents * std::sin (vibratoPhase);
+        const float cents = smoothedCents.getNextValue() + vibratoDepthCents * vibratoLfo.processSample();
         pitchShifter.setPitchRatio (std::exp2 (cents / 1200.0f));
         s = pitchShifter.processSample (s);
 
@@ -176,6 +173,8 @@ private:
     PitchShifter  pitchShifter;
     Diffuser      diffuser;
     OnePoleFilter warmthFilter;
+    SineLFO       vibratoLfo;
+    RandomWalk    timingDrift;
     juce::Random  rng;
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedDelay;
@@ -189,10 +188,7 @@ private:
 
     float lastMicroOffset = 0.0f;
     float lastGain        = defaultGain;
-    float driftSamples    = 0.0f;
 
-    float vibratoPhase      = 0.0f;
-    float vibratoInc        = 0.0f;
     float vibratoDepthCents = 0.0f;
 };
 

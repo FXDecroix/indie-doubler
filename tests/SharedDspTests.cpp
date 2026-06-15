@@ -17,6 +17,47 @@ double highFreqEnergy (const std::vector<float>& x)
 }
 } // namespace
 
+TEST_CASE ("SineLFO oscillates at the requested frequency", "[shared][modulators]")
+{
+    constexpr double sr = 48000.0;
+    constexpr float freq = 100.0f;
+
+    indie::SineLFO lfo;
+    lfo.prepare (sr);
+    lfo.setFrequency (freq);
+    lfo.setPhase (0.0f);
+
+    int crossings = 0;
+    float prev = lfo.processSample();
+    for (int n = 1; n < (int) sr; ++n) // 1 second
+    {
+        const float cur = lfo.processSample();
+        if ((cur > 0.0f) != (prev > 0.0f))
+            ++crossings;
+        CHECK (std::abs (cur) <= 1.0f + 1.0e-6f); // unit amplitude
+        prev = cur;
+    }
+
+    // ~2 zero-crossings per cycle, 100 cycles in a second.
+    CHECK (crossings >= 198);
+    CHECK (crossings <= 202);
+}
+
+TEST_CASE ("RandomWalk stays within its limit", "[shared][modulators]")
+{
+    indie::RandomWalk walk;
+    walk.setStepSize (0.5f);
+    walk.setLimit (3.0f);
+    walk.reset();
+
+    juce::Random rng (4);
+    for (int n = 0; n < 100000; ++n)
+    {
+        const float v = walk.processSample (rng.nextFloat() * 2.0f - 1.0f);
+        REQUIRE (std::abs (v) <= 3.0f);
+    }
+}
+
 TEST_CASE ("SaturationStage is near-unity at low signal and bounded", "[shared][saturation]")
 {
     indie::SaturationStage sat;
