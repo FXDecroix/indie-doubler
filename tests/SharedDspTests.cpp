@@ -32,6 +32,40 @@ TEST_CASE ("OnePoleFilter passes DC and settles to the input level", "[shared][o
     CHECK (y == Catch::Approx (1.0f).margin (1.0e-4f));
 }
 
+TEST_CASE ("EnvelopeFollower with instant attack tracks a peak immediately", "[shared][envelope]")
+{
+    constexpr double sr = 48000.0;
+    indie::EnvelopeFollower env;
+    env.prepare (sr);
+    env.setAttackTime (0.0f);       // instant
+    env.setReleaseTime (0.050f);
+
+    // First non-zero sample should jump straight to its magnitude.
+    const float y = env.processSample (-0.8f);
+    CHECK (y == Catch::Approx (0.8f));
+}
+
+TEST_CASE ("EnvelopeFollower releases slower with a longer release time", "[shared][envelope]")
+{
+    constexpr double sr = 48000.0;
+
+    auto valueAfterDecay = [&] (float releaseSeconds)
+    {
+        indie::EnvelopeFollower env;
+        env.prepare (sr);
+        env.setAttackTime (0.0f);
+        env.setReleaseTime (releaseSeconds);
+
+        env.processSample (1.0f);   // charge to 1.0
+        for (int n = 0; n < (int) (0.010 * sr); ++n) // 10 ms of silence
+            env.processSample (0.0f);
+        return env.getCurrentValue();
+    };
+
+    // A longer release time should leave more level after the same decay window.
+    CHECK (valueAfterDecay (0.100f) > valueAfterDecay (0.010f));
+}
+
 TEST_CASE ("OnePoleFilter attenuates more high frequency at a lower cutoff", "[shared][onepole]")
 {
     constexpr double sr = 48000.0;

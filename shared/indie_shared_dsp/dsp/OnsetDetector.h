@@ -2,14 +2,16 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include "EnvelopeFollower.h"
+
 namespace indie
 {
 
 /**
     Lightweight transient / note-onset detector.
 
-    Tracks a fast and a slow peak-envelope follower. When the fast envelope
-    rises sharply above the slow envelope (by a ratio threshold) and a minimum
+    Composes a fast (instant-attack) and a slow envelope follower. When the fast
+    envelope rises sharply above the slow envelope (by a ratio threshold) and a minimum
     re-trigger interval (refractory time) has elapsed, an onset is reported.
 
     This drives the doubler's per-note variance: each detected onset re-rolls the
@@ -25,16 +27,24 @@ public:
 
     void prepare (double sampleRate)
     {
-        fastCoeff = coeffForTime (fastReleaseSeconds, sampleRate);
-        slowCoeff = coeffForTime (slowReleaseSeconds, sampleRate);
+        // Fast follower: instant attack, quick release, so it spikes on a transient.
+        fastFollower.prepare (sampleRate);
+        fastFollower.setAttackTime (0.0f);
+        fastFollower.setReleaseTime (fastReleaseSeconds);
+
+        // Slow follower: symmetric, tracks the longer-term running level.
+        slowFollower.prepare (sampleRate);
+        slowFollower.setAttackTime (slowReleaseSeconds);
+        slowFollower.setReleaseTime (slowReleaseSeconds);
+
         refractorySamples = juce::jmax (1, (int) (refractorySeconds * sampleRate));
         reset();
     }
 
     void reset()
     {
-        fastEnv = 0.0f;
-        slowEnv = 0.0f;
+        fastFollower.reset();
+        slowFollower.reset();
         samplesSinceOnset = refractorySamples; // ready to fire immediately
         armed = true;
     }
@@ -42,12 +52,8 @@ public:
     /** Feeds one (already summed-to-mono) input sample. Returns true on an onset. */
     bool processSample (float input)
     {
-        const float mag = std::abs (input);
-
-        // Fast follower attacks instantly, releases quickly.
-        fastEnv = (mag > fastEnv) ? mag : fastEnv + fastCoeff * (mag - fastEnv);
-        // Slow follower tracks the longer-term level (and catches up after an attack).
-        slowEnv = slowEnv + slowCoeff * (mag - slowEnv);
+        const float fastEnv = fastFollower.processSample (input);
+        const float slowEnv = slowFollower.processSample (input);
 
         if (samplesSinceOnset < refractorySamples)
             ++samplesSinceOnset;
@@ -79,12 +85,6 @@ public:
     }
 
 private:
-    static float coeffForTime (float seconds, double sampleRate)
-    {
-        // Per-sample smoothing factor for a one-pole follower with the given time constant.
-        return 1.0f - std::exp (-1.0f / (juce::jmax (1.0e-5f, seconds) * (float) sampleRate));
-    }
-
     // Tunables. Hysteresis (high to fire, low to re-arm) prevents a sustained note —
     // whose slow envelope lags the attack — from re-triggering during catch-up.
     static constexpr float fastReleaseSeconds = 0.005f;
@@ -93,12 +93,10 @@ private:
     static constexpr float thresholdHigh      = 2.0f;   // fire when fast exceeds slow by this
     static constexpr float thresholdLow       = 1.1f;   // re-arm once the ratio falls back here
 
-    float fastCoeff = 0.0f;
-    float slowCoeff = 0.0f;
+    EnvelopeFollower fastFollower;
+    EnvelopeFollower slowFollower;
     int   refractorySamples = 1;
 
-    float fastEnv = 0.0f;
-    float slowEnv = 0.0f;
     int   samplesSinceOnset = 0;
     bool  armed = true;
 };
