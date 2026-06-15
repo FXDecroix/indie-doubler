@@ -81,6 +81,92 @@ TEST_CASE ("Fully dry mix is a passthrough", "[doubler][engine]")
             REQUIRE (output.getSample (ch, n) == Catch::Approx (input.getSample (ch, n)).margin (1.0e-6));
 }
 
+TEST_CASE ("Bus layouts: mono input can be widened to a stereo output", "[doubler][buses]")
+{
+    PluginProcessor proc;
+
+    juce::AudioProcessor::BusesLayout monoToStereo;
+    monoToStereo.inputBuses.add (juce::AudioChannelSet::mono());
+    monoToStereo.outputBuses.add (juce::AudioChannelSet::stereo());
+    CHECK (proc.isBusesLayoutSupported (monoToStereo));
+
+    juce::AudioProcessor::BusesLayout monoToMono;
+    monoToMono.inputBuses.add (juce::AudioChannelSet::mono());
+    monoToMono.outputBuses.add (juce::AudioChannelSet::mono());
+    CHECK (proc.isBusesLayoutSupported (monoToMono));
+
+    juce::AudioProcessor::BusesLayout stereoToStereo;
+    stereoToStereo.inputBuses.add (juce::AudioChannelSet::stereo());
+    stereoToStereo.outputBuses.add (juce::AudioChannelSet::stereo());
+    CHECK (proc.isBusesLayoutSupported (stereoToStereo));
+
+    // Mismatched channel counts other than mono->stereo remain unsupported.
+    juce::AudioProcessor::BusesLayout stereoToMono;
+    stereoToMono.inputBuses.add (juce::AudioChannelSet::stereo());
+    stereoToMono.outputBuses.add (juce::AudioChannelSet::mono());
+    CHECK_FALSE (proc.isBusesLayoutSupported (stereoToMono));
+}
+
+TEST_CASE ("Mono-widened output matches feeding the same signal to both stereo channels", "[doubler][buses]")
+{
+    constexpr double sr = 48000.0;
+    constexpr int block = 4096; // long enough for the wet doubles to clear their initial delay
+
+    juce::Random rng (3);
+    std::vector<float> mono ((size_t) block);
+    for (auto& s : mono)
+        s = (rng.nextFloat() * 2.0f - 1.0f) * 0.5f;
+
+    // Reference: a stereo/stereo instance fed the same signal on both channels
+    // (the manual "duplicate to stereo" workaround a user would otherwise need).
+    PluginProcessor stereoProc;
+    stereoProc.prepareToPlay (sr, block);
+
+    juce::AudioBuffer<float> stereoBuffer (2, block);
+    for (int n = 0; n < block; ++n)
+    {
+        stereoBuffer.setSample (0, n, mono[(size_t) n]);
+        stereoBuffer.setSample (1, n, mono[(size_t) n]);
+    }
+
+    juce::MidiBuffer midi;
+    stereoProc.processBlock (stereoBuffer, midi);
+
+    // Mono in / stereo out: only channel 0 carries the input; channel 1 starts
+    // with unrelated leftover data that must be ignored.
+    juce::AudioProcessor::BusesLayout monoToStereo;
+    monoToStereo.inputBuses.add (juce::AudioChannelSet::mono());
+    monoToStereo.outputBuses.add (juce::AudioChannelSet::stereo());
+
+    PluginProcessor monoProc;
+    REQUIRE (monoProc.setBusesLayout (monoToStereo));
+    monoProc.prepareToPlay (sr, block);
+
+    juce::AudioBuffer<float> monoBuffer (2, block);
+    for (int n = 0; n < block; ++n)
+    {
+        monoBuffer.setSample (0, n, mono[(size_t) n]);
+        monoBuffer.setSample (1, n, (rng.nextFloat() * 2.0f - 1.0f) * 0.9f);
+    }
+
+    monoProc.processBlock (monoBuffer, midi);
+
+    for (int ch = 0; ch < 2; ++ch)
+        for (int n = 0; n < block; ++n)
+            CHECK (monoBuffer.getSample (ch, n) == Catch::Approx (stereoBuffer.getSample (ch, n)).margin (1.0e-6f));
+
+    // The doubler should still spread its doubles across the stereo field -
+    // a genuine stereo image, not dual-mono.
+    bool differs = false;
+    for (int n = 0; n < block; ++n)
+        if (std::abs (monoBuffer.getSample (0, n) - monoBuffer.getSample (1, n)) > 1.0e-4f)
+        {
+            differs = true;
+            break;
+        }
+    CHECK (differs);
+}
+
 TEST_CASE ("Default mix preserves overall signal level", "[doubler][engine][gain]")
 {
     constexpr double sr = 48000.0;

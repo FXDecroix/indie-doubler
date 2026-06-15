@@ -185,15 +185,24 @@ bool PluginProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     juce::ignoreUnused (layouts);
     return true;
   #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+    const auto mainOut = layouts.getMainOutputChannelSet();
+
+    // We support mono or stereo output.
+    if (mainOut != juce::AudioChannelSet::mono()
+     && mainOut != juce::AudioChannelSet::stereo())
         return false;
 
-    // This checks if the input layout matches the output layout
    #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
+    const auto mainIn = layouts.getMainInputChannelSet();
+
+    // The input must either match the output (mono->mono, stereo->stereo),
+    // or be a mono source widened to a stereo output - the doubler spreads
+    // its generated doubles across the stereo field, so a mono track gets
+    // an instant sense of space with no extra routing.
+    const bool monoToStereo = mainIn == juce::AudioChannelSet::mono()
+                            && mainOut == juce::AudioChannelSet::stereo();
+
+    if (mainIn != mainOut && ! monoToStereo)
         return false;
    #endif
 
@@ -210,14 +219,24 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    // Mono source widened to a stereo output: duplicate the input into the
+    // second channel so the engine sees a "stereo" source (identical in both
+    // channels) and pans the generated doubles across the full stereo field.
+    if (totalNumInputChannels == 1 && totalNumOutputChannels == 2)
+    {
+        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
+    }
+    else
+    {
+        // In case we have more outputs than inputs, this code clears any output
+        // channels that didn't contain input data, (because these aren't
+        // guaranteed to be empty - they may contain garbage).
+        // This is here to avoid people getting screaming feedback
+        // when they first compile a plugin, but obviously you don't need to keep
+        // this code if your algorithm always overwrites all the output channels.
+        for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+            buffer.clear (i, 0, buffer.getNumSamples());
+    }
 
     indie::DoublerEngine::Parameters params;
     params.numVoices    = (int) std::round (voicesParam->load());
