@@ -17,4 +17,4 @@
 [submodule "modules/indie_shared_dsp"]
 	path = modules/indie_shared_dsp
 	url = https://github.com/FXDecroix/indie-shared-dsp.git
-	branch = claude/relaxed-einstein-m0zors
+	branch = main
