@@ -60,6 +60,9 @@ add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
 # Add any other modules you want modules here, before the juce_add_plugin call
 # juce_add_module(modules/my_module)
 
+# Reusable DSP building blocks shared across the Indie plugin suite
+juce_add_module(modules/indie_shared_dsp/indie_shared_dsp)
+
 # This adds the melatonin inspector module
 add_subdirectory (modules/melatonin_inspector)
 
@@ -112,12 +115,6 @@ include(SharedCodeDefaults)
 file(GLOB_RECURSE SourceFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/source/*.h")
 target_sources(SharedCode INTERFACE ${SourceFiles})
 
-# Reusable building blocks shared across the Indie plugin suite, kept isolated from
-# plugin-specific code in source/ so this folder can be lifted into its own module/repo later.
-file(GLOB_RECURSE SharedComponentFiles CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shared/*.h")
-target_sources(SharedCode INTERFACE ${SharedComponentFiles})
-target_include_directories(SharedCode INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/shared")
-
 # Adds a BinaryData target for embedding assets into the binary
 include(Assets)
 
@@ -153,6 +150,7 @@ target_link_libraries(SharedCode
     INTERFACE
     Assets
     melatonin_inspector
+    indie_shared_dsp
     juce_audio_utils
     juce_audio_processors
     juce_dsp
