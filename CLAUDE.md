@@ -12,6 +12,9 @@ This project is derived from the [Pamplejuce](https://github.com/sudara/pampleju
 
 The template provides the build system, CI/CD, and project structure. The plugin-specific logic lives in `source/`.
 
+This plugin is part of the wider Indie suite — see [docs/ROADMAP.md](docs/ROADMAP.md) for the
+multi-repo plan (indie-doubler, indie-shared-dsp, indie-plugin-template) and current phase status.
+
 Builds default to **Debug** mode for development (faster builds, better debugging). If audio
 performance issues come up (dropouts, high CPU) while using the plugin, build in **Release**
 mode instead.
